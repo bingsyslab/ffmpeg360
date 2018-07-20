@@ -274,6 +274,7 @@ extern AVFilter ff_vf_premultiply;
 extern AVFilter ff_vf_prewitt;
 extern AVFilter ff_vf_procamp_vaapi;
 extern AVFilter ff_vf_program_opencl;
+extern AVFilter ff_vf_project;
 extern AVFilter ff_vf_pseudocolor;
 extern AVFilter ff_vf_psnr;
 extern AVFilter ff_vf_pullup;
