@@ -5,6 +5,7 @@ HEADERS = avfilter.h                                                    \
           buffersink.h                                                  \
           buffersrc.h                                                   \
           version.h                                                     \
+          gl_utils.h                                                     \
 
 OBJS = allfilters.o                                                     \
        audio.o                                                          \
@@ -21,6 +22,7 @@ OBJS = allfilters.o                                                     \
        graphparser.o                                                    \
        transform.o                                                      \
        video.o                                                          \
+       gl_utils.o                                                       \
 
 OBJS-$(HAVE_THREADS)                         += pthread.o
 
