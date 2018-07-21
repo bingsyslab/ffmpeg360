@@ -773,9 +773,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *frame)
 
             if(args[0] > fr_t + s->tb)
                 break;
-            rotations[0] = args[1];
-            rotations[1] = args[2];
-            rotations[2] = args[3];
+
+            rotations[0] = args[2];
+            rotations[1] = args[3];
+            rotations[2] = 0.0f;
         }
     }
 
