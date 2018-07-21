@@ -40,6 +40,65 @@
 #include "gl_utils.h"
 #include <png.h>
 
+#define ITEM_STR_LEN 128
+#define ENLARGE_ITEM_NR 20
+
+typedef union {
+    char str[ITEM_STR_LEN];
+
+    uint64_t u64;
+
+    uint32_t u32;
+
+    int64_t  i64;
+
+    int32_t  i32;
+
+    void *ptr;
+
+} vector_item_t;
+
+typedef struct {
+    vector_item_t *head;
+
+    uint64_t nr;
+
+    uint64_t size;
+} vector_t;
+
+static vector_t *init_vector(void)
+{
+    vector_t *v = (vector_t *)malloc(sizeof(vector_t));
+    v->head = NULL;
+    v->nr = 0;
+    v->size = 0;
+    return v;
+}
+
+static void destroy_vector(vector_t *v)
+{
+    if(v->size)
+        free(v->head);
+    free(v);
+}
+
+static void *enlarge_vector(vector_t *v)
+{
+    v->size += ENLARGE_ITEM_NR;
+    v->head = realloc(v->head, sizeof(vector_item_t) * v->size);
+    return v;
+}
+
+static void push_back(vector_t *v, vector_item_t item)
+{
+    if(v->nr >= v->size)
+        enlarge_vector(v);
+    memcpy(&v->head[v->nr], &item, sizeof(vector_item_t));
+    /* v->head[v->nr] = item; */
+    v->nr++;
+}
+
+
 static const GLfloat back_color[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 static const GLenum draw_buffers[] = { GL_COLOR_ATTACHMENT0 };
 
@@ -697,7 +756,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *frame)
 
     fr_t = frame->pts == AV_NOPTS_VALUE ? NAN : frame->pts * av_q2d(link->time_base);
     if(fr_idx == 1)
-        av_log(ctx, AV_LOG_INFO, "[Project Filter] filter_frame(): frame: %d, pts: %ld, timestamp: %ld, time: %f, timebase: %f\n", fr_idx, frame->pts, frame->best_effort_timestamp, fr_t, s->tb);
+        av_log(ctx, AV_LOG_INFO, "[Project Filter] filter_frame(): frame: %d, pts: %lld, timestamp: %lld, time: %f, timebase: %f\n", fr_idx, frame->pts, frame->best_effort_timestamp, fr_t, s->tb);
 
     rotations[0] = s->xr;
     rotations[1] = s->yr;
@@ -707,7 +766,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *frame)
         for(i = 0; i < s->ors->nr; i++){
             memcpy(line, s->ors->head[i].str, 128);
             parsed = parseArgsf(line, args, " ");
-            //printf("parsed: %d, args: %f, %f, %f, %f\n", parsed, args[0], args[1], args[2], args[3]);
             if(parsed != 4){
                 av_log(ctx, AV_LOG_ERROR, "[Project Filter] Error on parsing file %s line %d: %s\n", s->orfile, i+1, s->ors->head[i].str);
                 return AVERROR(ENOSYS);
@@ -715,13 +773,11 @@ static int filter_frame(AVFilterLink *link, AVFrame *frame)
 
             if(args[0] > fr_t + s->tb)
                 break;
-            rotations[0] = args[2];
-            rotations[1] = args[3];
-            rotations[2] = args[4];
+            rotations[0] = args[1];
+            rotations[1] = args[2];
+            rotations[2] = args[3];
         }
     }
-
-    // av_log(ctx, AV_LOG_INFO, "[Project Filter] filter_frame(): rotation about x: %f, y: %f, z: %f\n", rotations[0], rotations[1], rotations[2]);
 
     in_w = frame->width;
     in_h = frame->height;
@@ -804,9 +860,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *frame)
         }
     }
 
-
-    /* const GLfloat back_color[] = { 0.0f, 0.0f, 0.0f, 1.0f }; */
-    /* const GLenum draw_buffers[] = { GL_COLOR_ATTACHMENT0 }; */
 
     glViewport(0, 0, s->w, s->h);
 
@@ -900,9 +953,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *frame)
 
     if(frame->data[3])
         memset(frame->data[3], 255, frame->height * frame->linesize[3]);
-
-    //glUseProgram(0);
-
 
     return ff_filter_frame(link->dst->outputs[0], frame);
 }
@@ -1028,8 +1078,6 @@ int CreateTiles(AVFilterContext *ctx)
         rx = -1 * lx;
         ty = tan( DegreesToRadians( s->tiles[i].fovy / 2 ) );
         by = -1 * ty;
-        /* av_log(ctx, AV_LOG_INFO, "[Project Filter]\n Before applying rotation, the corners are: (%.2f, %.2f) , (%.2f, %.2f), (%.2f, %.2f), (%.2f, %.2f)\n", */
-        /*        lx, ty,   lx, by,   rx, ty,   rx, by); */
 
         rotation = IDENTITY_MATRIX;
 
@@ -1112,7 +1160,6 @@ int CreateTiles(AVFilterContext *ctx)
 
     //av_log(ctx, AV_LOG_INFO, "[OpenGL] INFO: program id %d, fragshader id %d, vertexshader id %d\n", s->ShaderIds[0], s->ShaderIds[1], s->ShaderIds[2]);
 
-    // May add code to check the compiling/linking result for debugging
     glLinkProgram(s->ShaderIds[0]);
     ExitOnGLError(ctx, "ERROR: Could not link the shader program");
 
@@ -1322,9 +1369,6 @@ void CreateFramebuffer(AVFilterContext *ctx, int w, int h)
 {
     ProjectContext *s = ctx->priv;
 
-    /* glGenFramebuffers(1, &s->FramebufferId); */
-    /* glGenRenderbuffers(1, &s->RenderbufferId); */
-
     glBindRenderbuffer(GL_RENDERBUFFER, s->RenderbufferId);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_R8, w, h);
 
@@ -1341,9 +1385,6 @@ void CreateFramebuffer(AVFilterContext *ctx, int w, int h)
 void CreateFramebuffer2(AVFilterContext *ctx, int w, int h)
 {
     ProjectContext *s = ctx->priv;
-
-    /* glGenFramebuffers(1, &s->FramebufferId2); */
-    /* glGenRenderbuffers(1, &s->RenderbufferId2); */
 
     glBindRenderbuffer(GL_RENDERBUFFER, s->RenderbufferId2);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_R8, w, h);
@@ -1411,8 +1452,6 @@ void write_png_file(char *filename, int w, int h, uint8_t *d)
     png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 
     info = png_create_info_struct(png);
-
-//    if(setjmp(png_jmpbuf(png))) abort();
 
     png_init_io(png, fp);
 
